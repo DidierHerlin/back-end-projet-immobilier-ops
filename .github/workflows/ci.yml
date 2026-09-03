@@ -96,8 +96,8 @@ jobs:
         if: github.event_name == 'push'
         uses: docker/build-push-action@v6
         with:
-          context: ./Configuration
-          file: ./Configuration/Dockerfile
+          context: ./configuration
+          file: ./configuration/Dockerfile
           push: true
           tags: |
             ${{ env.IMAGE_NAME }}:latest
@@ -105,4 +105,4 @@ jobs:
 
       - name: Build image only on PR
         if: github.event_name == 'pull_request'
-        run: docker build -t immobilier-drf:pr ./Configuration
+        run: docker build -t immobilier-drf:pr ./configuration
