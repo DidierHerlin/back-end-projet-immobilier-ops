@@ -19,7 +19,7 @@ jobs:
         env:
           POSTGRES_DB: app_db
           POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: 
+          POSTGRES_PASSWORD: postgres
         ports:
           - 5432:5432
         options: >-
@@ -33,7 +33,7 @@ jobs:
       DEBUG: "True"
       DB_NAME: app_db
       DB_USER: postgres
-      DB_PASSWORD: 
+      DB_PASSWORD: postgres
       DB_HOST: localhost
       DB_PORT: "5432"
       ALLOWED_HOSTS: localhost,127.0.0.1
@@ -80,12 +80,6 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
-      - name: Debug secrets presence
-        if: github.event_name == 'push'
-        run: |
-          if [ -z "${{ secrets.DOCKERHUB_USERNAME }}" ]; then echo "DOCKERHUB_USERNAME est VIDE"; else echo "DOCKERHUB_USERNAME est défini"; fi
-          if [ -z "${{ secrets.DOCKERHUB_TOKEN }}" ]; then echo "DOCKERHUB_TOKEN est VIDE"; else echo "DOCKERHUB_TOKEN est défini"; fi
 
       - name: Log in to Docker Hub
         if: github.event_name == 'push'
