@@ -48,7 +48,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: ./Configuration
+        working-directory: ./configuration
 
     steps:
       - name: Checkout du code
