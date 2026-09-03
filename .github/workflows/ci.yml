@@ -46,10 +46,6 @@ jobs:
       EMAIL_BACKEND: django.core.mail.backends.console.EmailBackend
       DEFAULT_FROM_EMAIL: noreply@local.test
 
-    defaults:
-      run:
-        working-directory: ./configuration
-
     steps:
       - name: Checkout du code
         uses: actions/checkout@v4
@@ -96,8 +92,8 @@ jobs:
         if: github.event_name == 'push'
         uses: docker/build-push-action@v6
         with:
-          context: ./configuration
-          file: ./configuration/Dockerfile
+          context: .
+          file: ./Dockerfile
           push: true
           tags: |
             ${{ env.IMAGE_NAME }}:latest
@@ -105,4 +101,4 @@ jobs:
 
       - name: Build image only on PR
         if: github.event_name == 'pull_request'
-        run: docker build -t immobilier-drf:pr ./configuration
+        run: docker build -t immobilier-drf:pr .
