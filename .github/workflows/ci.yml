@@ -2,9 +2,9 @@ name: CI - DRF
 
 on:
   push:
-    branches: [main, master]
+    branches: [main]
   pull_request:
-    branches: [main, master]
+    branches: [main]
 
 permissions:
   contents: read
@@ -52,10 +52,10 @@ jobs:
 
     steps:
       - name: Checkout du code
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@v4
 
       - name: Setup Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
@@ -76,12 +76,33 @@ jobs:
 
     steps:
       - name: Checkout du code
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      - name: Vérifier que les secrets SonarQube sont configurés
+        run: |
+          MISSING=0
+          if [ -z "${{ secrets.SONAR_TOKEN }}" ]; then
+            echo "::error::Le secret SONAR_TOKEN est vide ou absent. Va sur https://sonarcloud.io/account/security pour en générer un, puis ajoute-le dans Settings > Secrets and variables > Actions."
+            MISSING=1
+          fi
+          if [ -z "${{ secrets.SONAR_HOST_URL }}" ]; then
+            echo "::error::Le secret SONAR_HOST_URL est vide ou absent. Sa valeur doit être exactement : https://sonarcloud.io"
+            MISSING=1
+          fi
+          if [ -z "${{ secrets.SONAR_PROJECT_KEY }}" ]; then
+            echo "::error::Le secret SONAR_PROJECT_KEY est vide ou absent. Récupère-le dans l'URL de ton projet sur sonarcloud.io (paramètre ?id=...)."
+            MISSING=1
+          fi
+          if [ "$MISSING" = "1" ]; then
+            echo "::error::Un ou plusieurs secrets SonarQube sont manquants. Le job s'arrête ici avec un message clair au lieu de l'erreur cryptique du scanner."
+            exit 1
+          fi
+          echo "Tous les secrets SonarQube sont bien configurés."
+
       - name: Analyse SonarQube
-        uses: SonarSource/sonarqube-scan-action@2f77a1ec69fb1d595b06f35ab27e97605bdef703 # v5
+        uses: SonarSource/sonarqube-scan-action@v5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
@@ -89,6 +110,7 @@ jobs:
           projectBaseDir: ./configuration
           args: >-
             -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }}
+            -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }}
             -Dsonar.sources=.
             -Dsonar.python.version=3.11
 
@@ -98,14 +120,14 @@ jobs:
 
     steps:
       - name: Checkout du code
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+        uses: docker/setup-buildx-action@v3
 
       - name: Log in to Docker Hub
         if: github.event_name == 'push'
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -116,7 +138,7 @@ jobs:
 
       - name: Build and push Docker image
         if: github.event_name == 'push'
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        uses: docker/build-push-action@v6
         with:
           context: ./configuration
           file: ./configuration/Dockerfile
