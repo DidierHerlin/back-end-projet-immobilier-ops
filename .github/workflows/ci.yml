@@ -2,9 +2,9 @@ name: CI - DRF
 
 on:
   push:
-    branches: [main, master]
+    branches: [main]
   pull_request:
-    branches: [main, master]
+    branches: [main]
 
 permissions:
   contents: read
@@ -70,8 +70,52 @@ jobs:
       - name: Lancer les tests Django
         run: python manage.py test
 
-  docker-publish:
+  code-quality:
     needs: backend-tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Vérifier que les secrets SonarQube sont configurés
+        run: |
+          MISSING=0
+          if [ -z "${{ secrets.SONAR_TOKEN }}" ]; then
+            echo "::error::Le secret SONAR_TOKEN est vide ou absent."
+            MISSING=1
+          fi
+          if [ -z "${{ secrets.SONAR_HOST_URL }}" ]; then
+            echo "::error::Le secret SONAR_HOST_URL est vide ou absent. Sa valeur doit être : https://sonarcloud.io"
+            MISSING=1
+          fi
+          if [ -z "${{ secrets.SONAR_PROJECT_KEY }}" ]; then
+            echo "::error::Le secret SONAR_PROJECT_KEY est vide ou absent."
+            MISSING=1
+          fi
+          if [ "$MISSING" = "1" ]; then
+            exit 1
+          fi
+          echo "Tous les secrets SonarQube sont bien configurés."
+
+      - name: Analyse SonarQube
+        uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        with:
+          projectBaseDir: ./configuration
+          args: >-
+            -Dsonar.organization=didierherlin
+            -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }}
+            -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }}
+            -Dsonar.sources=.
+            -Dsonar.python.version=3.11
+
+  docker-publish:
+    needs: [backend-tests, code-quality]
     runs-on: ubuntu-latest
 
     steps:
