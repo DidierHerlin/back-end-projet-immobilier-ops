@@ -4,8 +4,6 @@ import logging
 
 from django.db import transaction
 from django.shortcuts import get_object_or_404
-from django.utils.decorators import method_decorator
-from django.views.decorators.csrf import csrf_exempt
 from rest_framework import status
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -44,7 +42,6 @@ ROLES_GESTIONNAIRES = (Utilisateur.Role.AGENT, Utilisateur.Role.ADMIN)
 # AUTHENTIFICATION JWT (CORRIGÉ)
 # ===================================================================
 
-@method_decorator(csrf_exempt, name="dispatch")
 class LoginView(TokenObtainPairView):
     """
     Connexion utilisateur — retourne un couple (access, refresh) de tokens JWT
@@ -764,7 +761,6 @@ class ChangePasswordView(APIView):
 # RÉINITIALISATION MOT DE PASSE (3 étapes, par code — cf. serializers.py)
 # ===================================================================
 
-@method_decorator(csrf_exempt, name="dispatch")
 class RequestPasswordResetView(APIView):
     """Étape 1 : Demande de réinitialisation - Envoie un code par email"""
     permission_classes = [AllowAny]
@@ -801,7 +797,6 @@ class RequestPasswordResetView(APIView):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-@method_decorator(csrf_exempt, name="dispatch")
 class VerifyResetCodeView(APIView):
     """Étape 2 : Vérification du code"""
     permission_classes = [AllowAny]
@@ -823,7 +818,6 @@ class VerifyResetCodeView(APIView):
         }, status=status.HTTP_200_OK)
 
 
-@method_decorator(csrf_exempt, name="dispatch")
 class ResetPasswordView(APIView):
     """Étape 3 : Réinitialisation finale du mot de passe"""
     permission_classes = [AllowAny]
