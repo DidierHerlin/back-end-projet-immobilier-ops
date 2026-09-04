@@ -70,8 +70,30 @@ jobs:
       - name: Lancer les tests Django
         run: python manage.py test
 
-  docker-publish:
+  code-quality:
     needs: backend-tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Analyse SonarQube
+        uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        with:
+          projectBaseDir: ./configuration
+          args: >-
+            -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }}
+            -Dsonar.sources=.
+            -Dsonar.python.version=3.11
+
+  docker-publish:
+    needs: [backend-tests, code-quality]
     runs-on: ubuntu-latest
 
     steps:

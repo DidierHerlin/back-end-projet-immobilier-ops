@@ -2,9 +2,6 @@
 
 import logging
 
-from django.contrib.auth import authenticate
-from django.contrib.auth import login as auth_login
-from django.contrib.auth import logout as auth_logout
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils.decorators import method_decorator
@@ -14,10 +11,17 @@ from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.authentication import SessionAuthentication
+
+# CORRECTION : imports JWT — remplacent authenticate / auth_login / auth_logout
+# / SessionAuthentication, qui géraient une authentification par SESSION,
+# incompatible avec l'exigence "authentification JWT" du cahier des charges.
+from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.exceptions import TokenError
 
 from .models import Locataire, Proprietaire, Utilisateur
 from .serializers import (
+    AgentRegisterSerializer,
     LocataireSerializer,
     PasswordResetCodeVerificationSerializer,
     PasswordResetConfirmSerializer,
@@ -25,6 +29,7 @@ from .serializers import (
     ProprietaireSerializer,
     UpdateProfilePhotoSerializer,
     UtilisateurSerializer,
+    UtilisateurTokenObtainPairSerializer,  # CORRECTION : serializer JWT désormais utilisé
     UtilisateurUpdateSerializer,
 )
 
@@ -36,57 +41,77 @@ ROLES_GESTIONNAIRES = (Utilisateur.Role.AGENT, Utilisateur.Role.ADMIN)
 
 
 # ===================================================================
-# AUTHENTIFICATION
+# AUTHENTIFICATION JWT (CORRIGÉ)
 # ===================================================================
 
 @method_decorator(csrf_exempt, name="dispatch")
-class LoginView(APIView):
-    """Connexion utilisateur"""
+class LoginView(TokenObtainPairView):
+    """
+    Connexion utilisateur — retourne un couple (access, refresh) de tokens JWT
+    ainsi que le profil de l'utilisateur connecté.
+
+    Utilise UtilisateurTokenObtainPairSerializer (déjà défini dans
+    serializers.py), qui enrichit le payload du token avec le rôle et
+    ajoute le profil utilisateur dans la réponse.
+
+    RG-04 : un compte désactivé (is_active=False) ne peut plus se connecter —
+    ce comportement est garanti nativement par TokenObtainPairSerializer,
+    qui vérifie `user.is_active` avant d'émettre un token.
+    """
     permission_classes = [AllowAny]
-    authentication_classes = [] 
+    authentication_classes = []
+    serializer_class = UtilisateurTokenObtainPairSerializer
 
-    def post(self, request):
-        email = request.data.get("email")
-        password = request.data.get("password")
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
 
-        if not email or not password:
+        try:
+            serializer.is_valid(raise_exception=True)
+        except Exception:
             return Response({
                 "success": False,
-                "error": "Email et mot de passe requis",
-            }, status=status.HTTP_400_BAD_REQUEST)
+                "error": "Email ou mot de passe incorrect",
+            }, status=status.HTTP_401_UNAUTHORIZED)
 
-        user = authenticate(request, email=email, password=password)
-
-        if user:
-            auth_login(request, user)
-            serializer = UtilisateurSerializer(user, context={"request": request})
-            return Response({
-                "success": True,
-                "message": "Connexion réussie",
-                "user": serializer.data,
-            }, status=status.HTTP_200_OK)
-
+        data = serializer.validated_data
         return Response({
-            "success": False,
-            "error": "Email ou mot de passe incorrect",
-        }, status=status.HTTP_401_UNAUTHORIZED)
+            "success": True,
+            "message": "Connexion réussie",
+            "access": str(data["access"]),
+            "refresh": str(data["refresh"]),
+            "user": data["utilisateur"],
+        }, status=status.HTTP_200_OK)
 
-class CsrfExemptSessionAuthentication(SessionAuthentication):
-    """
-    SessionAuthentication classique, mais sans la vérification CSRF.
-    Utilisée uniquement pour /auth/logout/, où le risque CSRF est
-    négligeable (l'action ne fait qu'invalider la session courante).
-    """
-    def enforce_csrf(self, request):
-        return  # on ne fait rien : pas de contrôle CSRF
 
 class LogoutView(APIView):
-    """Déconnexion utilisateur"""
-    authentication_classes = [CsrfExemptSessionAuthentication]
+    """
+    Déconnexion utilisateur — blackliste le refresh token transmis
+    (rest_framework_simplejwt.token_blacklist doit être dans INSTALLED_APPS).
+
+    Le client doit envoyer son refresh token dans le corps de la requête :
+        POST /api/auth/logout/
+        { "refresh": "<refresh_token>" }
+    """
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        auth_logout(request)
+        refresh_token = request.data.get("refresh")
+
+        if not refresh_token:
+            return Response({
+                "success": False,
+                "error": "Le refresh token est requis pour la déconnexion",
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+        except TokenError:
+            return Response({
+                "success": False,
+                "error": "Token invalide ou déjà expiré",
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         return Response({
             "success": True,
             "message": "Déconnexion réussie",
@@ -178,6 +203,51 @@ class ProprietaireRegisterView(APIView):
                 }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         logger.warning(f"Validation propriétaire échouée: {serializer.errors}")
+
+        return Response({
+            "success": False,
+            "error": "Données invalides",
+            "details": serializer.errors,
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class AgentRegisterView(APIView):
+    """
+    Inscription des agents immobiliers.
+    RG : un compte AGENT est créé inactif et doit être validé par un
+    administrateur avant de pouvoir se connecter.
+    """
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
+
+    def post(self, request):
+        logger.info(f"Tentative d'inscription agent: {request.data.get('email')}")
+
+        serializer = AgentRegisterSerializer(data=request.data, context={"request": request})
+
+        if serializer.is_valid():
+            try:
+                with transaction.atomic():
+                    user = serializer.save()
+
+                logger.info(f"Agent créé (en attente de validation): {user.email}")
+
+                return Response({
+                    "success": True,
+                    "message": "Inscription enregistrée. Votre compte sera activé après validation par un administrateur.",
+                    "data": UtilisateurSerializer(user, context={"request": request}).data,
+                }, status=status.HTTP_201_CREATED)
+
+            except Exception as e:
+                logger.error(f"Erreur lors de la création de l'agent: {str(e)}")
+                return Response({
+                    "success": False,
+                    "error": "Erreur lors de la création du compte",
+                    "details": str(e),
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        logger.warning(f"Validation agent échouée: {serializer.errors}")
 
         return Response({
             "success": False,

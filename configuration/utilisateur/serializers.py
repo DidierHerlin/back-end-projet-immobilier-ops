@@ -434,7 +434,42 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
 
 
 # ===================================================================
-# 7. LOGIN JWT
+# 7. INSCRIPTION AGENT (pas de modèle profil dédié, juste Utilisateur)
+# ===================================================================
+class AgentRegisterSerializer(serializers.Serializer):
+    """
+    Inscription d'un agent immobilier. Crée un Utilisateur avec role=AGENT.
+    Pas de modèle profil dédié (contrairement à Propriétaire/Locataire).
+    Le compte est créé inactif (AGENT n'est pas dans ROLES_AUTO_ACTIFS)
+    et doit être activé par un administrateur.
+    """
+
+    email = serializers.EmailField()
+    nom = serializers.CharField(max_length=100)
+    prenoms = serializers.CharField(max_length=150)
+    password = serializers.CharField(write_only=True, min_length=8, validators=[validate_password])
+    telephone = serializers.CharField(required=False, allow_blank=True)
+
+    def validate_email(self, value):
+        if Utilisateur.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError("Un compte avec cet email existe déjà.")
+        return value
+
+    def save(self, **kwargs):
+        data = self.validated_data
+        user = Utilisateur.objects.create_user(
+            email=data["email"],
+            password=data["password"],
+            nom=data["nom"],
+            prenoms=data["prenoms"],
+            role=Utilisateur.Role.AGENT,
+            telephone=data.get("telephone", ""),
+        )
+        return user
+
+
+# ===================================================================
+# 8. LOGIN JWT
 # ===================================================================
 class UtilisateurTokenObtainPairSerializer(TokenObtainPairSerializer):
     """
