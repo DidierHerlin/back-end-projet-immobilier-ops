@@ -1,17 +1,3 @@
-# api/validators.py
-"""
-Validateurs de mot de passe personnalisés.
-
-RG-02 : Le mot de passe doit respecter une politique de complexité minimale
-        (8 caractères, majuscule, chiffre).
-
-Ce validateur complète (et ne remplace pas) les validateurs Django standards
-déclarés dans AUTH_PASSWORD_VALIDATORS (settings.py) :
-- MinimumLengthValidator gère déjà la longueur minimale (8 caractères).
-- ComplexPasswordValidator (ci-dessous) gère la présence d'une majuscule
-  et d'un chiffre, non couverte par les validateurs Django par défaut.
-"""
-
 import re
 
 from django.core.exceptions import ValidationError

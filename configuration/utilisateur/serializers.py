@@ -1,5 +1,3 @@
-# api/serializers.py
-
 import random
 from datetime import timedelta
 

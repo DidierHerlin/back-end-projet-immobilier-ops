@@ -10,6 +10,8 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", include("utilisateur.urls")),
     path("api/", include("notifications.urls")),
+    path("api/", include("bien.urls")),
+    path("api/", include("contrats.urls")),
 
     # Documentation OpenAPI
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),

@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     "drf_spectacular",
     "bien",
     "notifications",
+    "contrats.apps.ContratsConfig",
 ]
 
 MIDDLEWARE = [

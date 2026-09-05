@@ -1,5 +1,3 @@
-# api/views.py
-
 import logging
 
 from django.db import transaction

@@ -1,4 +1,3 @@
-# api/models.py
 
 import os
 
