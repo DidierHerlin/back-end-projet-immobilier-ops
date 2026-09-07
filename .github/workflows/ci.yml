@@ -2,9 +2,9 @@ name: CI - DRF
 
 on:
   push:
-    branches: [main, master]
+    branches: [main]
   pull_request:
-    branches: [main, master]
+    branches: [main]
 
 permissions:
   contents: read
@@ -63,15 +63,77 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install coverage
 
       - name: Vérifier les migrations / configuration Django
         run: python manage.py check
 
-      - name: Lancer les tests Django
-        run: python manage.py test
+      - name: Lancer les tests avec couverture
+        run: |
+          coverage run --source='.' manage.py test
+          coverage xml -o coverage.xml
+
+      - name: Uploader le rapport de couverture
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: ./configuration/coverage.xml
+
+  code-quality:
+    needs: backend-tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Vérifier que les secrets SonarQube sont configurés
+        run: |
+          MISSING=0
+          if [ -z "${{ secrets.SONAR_TOKEN }}" ]; then
+            echo "::error::Le secret SONAR_TOKEN est vide ou absent. Va sur https://sonarcloud.io/account/security pour en générer un, puis ajoute-le dans Settings > Secrets and variables > Actions."
+            MISSING=1
+          fi
+          if [ -z "${{ secrets.SONAR_HOST_URL }}" ]; then
+            echo "::error::Le secret SONAR_HOST_URL est vide ou absent. Sa valeur doit être exactement : https://sonarcloud.io"
+            MISSING=1
+          fi
+          if [ -z "${{ secrets.SONAR_PROJECT_KEY }}" ]; then
+            echo "::error::Le secret SONAR_PROJECT_KEY est vide ou absent. Récupère-le dans l'URL de ton projet sur sonarcloud.io (paramètre ?id=...)."
+            MISSING=1
+          fi
+          if [ "$MISSING" = "1" ]; then
+            echo "::error::Un ou plusieurs secrets SonarQube sont manquants. Le job s'arrête ici avec un message clair au lieu de l'erreur cryptique du scanner."
+            exit 1
+          fi
+          echo "Tous les secrets SonarQube sont bien configurés."
+
+      - name: Télécharger le rapport de couverture
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-report
+          path: ./configuration
+
+      - name: Analyse SonarQube
+        uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        with:
+          projectBaseDir: ./configuration
+          args: >-
+            -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }}
+            -Dsonar.organization=didierherlin
+            -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }}
+            -Dsonar.sources=.
+            -Dsonar.python.version=3.11
+            -Dsonar.python.coverage.reportPaths=coverage.xml
 
   docker-publish:
-    needs: backend-tests
+    needs: [backend-tests, code-quality]
     runs-on: ubuntu-latest
 
     steps:

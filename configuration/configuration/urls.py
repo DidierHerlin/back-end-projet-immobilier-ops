@@ -9,6 +9,7 @@ from drf_spectacular.views import (
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", include("utilisateur.urls")),
+    path("api/", include("notifications.urls")),
 
     # Documentation OpenAPI
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),

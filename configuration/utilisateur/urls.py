@@ -5,6 +5,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 
 from .views import (
     ActiverCompteView,
+    AgentRegisterView,
     ChangePasswordView,
     DeleteProfilePhotoView,
     GetProfileView,
@@ -36,6 +37,7 @@ urlpatterns = [
     # -----------------------------------------------------------------
     path("locataires/register/", LocataireRegisterView.as_view(), name="locataire-register"),
     path("proprietaires/register/", ProprietaireRegisterView.as_view(), name="proprietaire-register"),
+    path("agents/register/", AgentRegisterView.as_view(), name="agent-register"),
 
     # -----------------------------------------------------------------
     # Locataires (agent/admin : liste + détail par id ; locataire : /me/)
