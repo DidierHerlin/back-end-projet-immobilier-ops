@@ -105,6 +105,10 @@ jobs:
             echo "::error::Le secret SONAR_PROJECT_KEY est vide ou absent. Récupère-le dans l'URL de ton projet sur sonarcloud.io (paramètre ?id=...)."
             MISSING=1
           fi
+          if [ -z "${{ secrets.SONAR_ORGANIZATION }}" ]; then
+            echo "::error::Le secret SONAR_ORGANIZATION est vide ou absent. C'est le slug de ton organisation sur sonarcloud.io (visible dans l'URL)."
+            MISSING=1
+          fi
           if [ "$MISSING" = "1" ]; then
             echo "::error::Un ou plusieurs secrets SonarQube sont manquants. Le job s'arrête ici avec un message clair au lieu de l'erreur cryptique du scanner."
             exit 1
@@ -126,6 +130,7 @@ jobs:
           projectBaseDir: ./configuration
           args: >-
             -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }}
+            -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }}
             -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }}
             -Dsonar.sources=.
             -Dsonar.python.version=3.11
